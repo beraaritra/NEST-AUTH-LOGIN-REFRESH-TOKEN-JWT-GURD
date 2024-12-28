@@ -5,19 +5,22 @@ import * as nodemailer from "nodemailer";
 export class MailService {
     private transporter: nodemailer.Transporter;
 
+    // Initialize the Nodemailer transporter with SMTP configuration
     constructor() {
-        // Initialize the Nodemailer transporter with SMTP configuration
         this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST, // e.g., "smtp.gmail.com"
+            host: process.env.SMTP_HOST, // "smtp.gmail.com"
             port: Number(process.env.SMTP_PORT) || 587, // Default SMTP port
             secure: false, // Use SSL/TLS
             auth: {
                 user: process.env.SMTP_USER, // SMTP username (e.g., email address)
                 pass: process.env.SMTP_PASSWORD, // SMTP password
             },
+            // logger: true,
+            // debug: true,
         });
     }
 
+    // Send an email using the initialized transporter
     async sendMail(to: string, subject: string, html: string): Promise<void> {
         try {
             await this.transporter.sendMail({
@@ -32,4 +35,4 @@ export class MailService {
             throw new Error("Failed to send email");
         }
     }
-}
+} 

@@ -186,7 +186,7 @@ export class AuthService {
     return
   }
 
-  // For Forget password............................................................................................................
+  // For Forget password Link generate...............................................................................................
   async forgotPassword(email: string,) {
     const user = await this.userRepository.findOne({
       where: { email },
@@ -205,13 +205,16 @@ export class AuthService {
     // Save The New Generate Reset Token in DB
     if (user) {
       const resetToken = nanoid(64);
+
       // Create a new reset token record in the database and set the expiration date
       const newResetToken = this.resetTokenRepository.create({ token: resetToken, user, expiryDate });
+
       // Remove the existing refresh token for the user if it exists
       const existingToken = await this.resetTokenRepository.findOne({ where: { user } });
       if (existingToken) {
         await this.resetTokenRepository.delete({ id: existingToken.id });
       }
+
       // Save the new reset token in the database with the expiration date and user reference
       await this.resetTokenRepository.save(newResetToken);
 
@@ -228,9 +231,9 @@ export class AuthService {
       <p>If you did not request a password reset, please ignore this email.</p>
     `;
       await this.mailService.sendMail(user.email, subject, html);
-
     }
-    return { messaage: 'If this User exists, they will recive an email' }
+
+    return { message: 'If this User exists, they will recive an email' }
 
   }
 
