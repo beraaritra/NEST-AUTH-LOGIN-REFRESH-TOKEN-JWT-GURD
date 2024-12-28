@@ -16,10 +16,11 @@ import { LoginUserDto } from './dto/login-user.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthGuard } from '../guards/auth.guard';
+import { ForgotpasswordDto } from './dto/forgot-password.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   // POST: Signup
   @Post('signup') //auth/signup
@@ -86,22 +87,43 @@ export class AuthController {
 
   // POST: Change Password
   @UseGuards(AuthGuard)
-  @Put('change-password') //auth/change-password
-  @HttpCode(200) // Explicitly set the response
-  async changePassword(
-    @Body() changePasswordDto: ChangePasswordDto,
-    @Request() req,
-  ) {
-    const userId = req.user?.userId; // optional chaining to access id safely
-    if (!userId) {
-      throw new UnauthorizedException('User not found in request.');
+  @Put('update-password') // auth/update-password
+  @HttpCode(201)
+  async updatePassword(@Body() changePasswordDto: ChangePasswordDto, @Request() req) {
+    try {
+      const userId = req.user?.userId; // Extract user ID from the token payload
+      if (!userId) {
+        throw new UnauthorizedException('User not found in request.');
+      }
+      await this.authService.updatePassword(
+        userId,
+        changePasswordDto.oldPassword,
+        changePasswordDto.newPassword,
+      );
+
+      return {
+        status: 'success',
+        message: 'Password updated successfully',
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error; // 401 Unauthorized
+      } else if (error instanceof BadRequestException) {
+        throw error; // 400 Bad Request
+      } else {
+        throw new InternalServerErrorException(
+          'An unexpected error occurred while updating the password.',
+        );
+      }
     }
-    return this.authService.changePassword(
-      userId,
-      changePasswordDto.oldPassword,
-      changePasswordDto.newPassword,
-    );
   }
 
-  
+  // POST: Forgot Password
+  @Post('forgot-password') //auth/forgot-password
+  @HttpCode(201) // Explicitly set the response
+  async forgotPassword(@Body() forgotpasswordDto: ForgotpasswordDto) {
+    return this.authService.forgotPassword(forgotpasswordDto.email)
+  }
+
+
 }

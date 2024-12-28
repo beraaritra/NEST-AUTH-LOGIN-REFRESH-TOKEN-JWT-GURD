@@ -1,5 +1,6 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
 import { RefreshToken } from '../../auth/entities/refresh-token.entity';
+import { ResetToken } from 'src/module/auth/entities/reset-token.entity';
 
 @Entity()
 export class User {
@@ -27,4 +28,8 @@ export class User {
     // Relationship with refresh tokens
     @OneToMany(() => RefreshToken, (refreshToken) => refreshToken.user)
     refreshTokens: RefreshToken[];
+
+    // Relationship with reset tokens
+    @OneToMany(() => ResetToken, (resetToken) => resetToken.user, { cascade: true })
+    resetTokens: ResetToken[];
 }

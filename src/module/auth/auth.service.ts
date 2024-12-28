@@ -1,18 +1,16 @@
-import {
-  Injectable,
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { ResetToken } from './entities/reset-token.entity';
 import { LoginUserDto } from './dto/login-user.dto';
 import { SignupUserDto } from './dto/create-user.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import { nanoid } from 'nanoid';
 
 @Injectable()
 export class AuthService {
@@ -21,10 +19,12 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
+    @InjectRepository(ResetToken)
+    private readonly resetTokenRepository: Repository<ResetToken>,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
-  // For signup user........................................................................................
+  // For Signup user..............................................................................................................
   async signup(signupUserDto: SignupUserDto): Promise<Partial<User>> {
     const {
       email,
@@ -76,7 +76,7 @@ export class AuthService {
     };
   }
 
-  // For login user.........................................................................................
+  // For login user...............................................................................................................
   async login({ email, password }: LoginUserDto): Promise<LoginResponseDto> {
     const user = await this.userRepository.findOne({
       where: { email },
@@ -102,7 +102,7 @@ export class AuthService {
     const token = await this.generateuserToken(user.id);
 
     // Store the refresh token in the database
-    await this.storeRefreshToken(token.refreshToken, user.id);
+    await this.storeRefreshToken(token.refreshToken, user);
 
     // Return user details, excluding the password
     const { password: _, ...userWithoutPassword } = user;
@@ -113,7 +113,7 @@ export class AuthService {
     };
   }
 
-  // For Refresh Token...........................................................................................................
+  // For Refresh Token.............................................................................................................
   // For RefreshToken wich check from the data base it login expired or not & and valid user or not
   async refreshTokens(refreshToken: string) {
     const token = await this.refreshTokenRepository.findOne({
@@ -148,57 +148,76 @@ export class AuthService {
     };
   }
 
-  // For Change Password.....................................................................................
-  async changePassword(
-    userId: number,
-    newPassword: string,
-    oldPassword: string,
-  ) {
-    // Fetch the user with the password field explicitly
+  // For Change Password............................................................................................................
+  async updatePassword(userId: number, oldPassword: string, newPassword: string) {
+    // Find the user by ID and select the password
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'password'], // Explicitly include password
+      select: ['id', 'password'],
     });
 
     if (!user) {
-      throw new BadRequestException('User not found.');
+      throw new UnauthorizedException('User not found.');
     }
 
-    // Log both the provided old password and the stored password hash for debugging
-    console.log('Provided Old Password:', oldPassword);
-    console.log('Stored Password Hash:', user.password);
-
-    // Compare the old password with the stored password hash
+    // Check if the old password matches the current password
     const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
     if (!isPasswordValid) {
-      throw new BadRequestException('Invalid old password.');
+      throw new BadRequestException('Old password is incorrect.');
     }
 
-    // Ensure new password is not the same as the old password
-    const isNewPasswordSame = await bcrypt.compare(newPassword, user.password);
-    if (isNewPasswordSame) {
+    // Check if the new password is the same as the old password
+    const isSameAsOldPassword = await bcrypt.compare(newPassword, user.password);
+    if (isSameAsOldPassword) {
       throw new BadRequestException(
         'New password cannot be the same as the old password.',
       );
     }
 
     // Hash the new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
-    // Log the new password hash for debugging
-    console.log('New Password Hash:', hashedPassword);
-
-    // Update the user's password in the database
-    user.password = hashedPassword;
+    // Update the user's password
+    user.password = hashedNewPassword;
     await this.userRepository.save(user);
 
-    return {
-      status: 'success',
-      message: 'Password changed successfully.',
-    };
+    return
   }
 
-  // this funtion For  generate Access token and refresh Token...................................................................
+  // For Forget password............................................................................................................
+  async forgotPassword(email: string,) {
+    const user = await this.userRepository.findOne({
+      where: { email },
+      select: ['id', 'email',]
+    });
+
+    // Set the expiration date
+    const expiryDate = new Date();
+    expiryDate.setHours(expiryDate.getHours() + 1);
+
+    // User validation Check
+    // if (!user) {
+    //   throw new UnauthorizedException('Invalid email or User Not exist');
+    // }
+
+    // Save The New Generate Reset Token in DB
+    if (user) {
+      const resetToken = nanoid(64);
+      // Create a new reset token record in the database and set the expiration date
+      const newResetToken = this.resetTokenRepository.create({ token: resetToken, user, expiryDate });
+      // Remove the existing refresh token for the user if it exists
+      const existingToken = await this.resetTokenRepository.findOne({ where: { user } });
+      if (existingToken) {
+        await this.resetTokenRepository.delete({ id: existingToken.id });
+      }
+      // Save the new reset token in the database with the expiration date and user reference
+      await this.resetTokenRepository.save(newResetToken);
+    }
+    return { messaage: 'If this User exists, they will recive an email' }
+
+  }
+
+  // this funtion For  generate Access token and refresh Token......................................................................
   async generateuserToken(userId: number) {
     const accessToken = this.jwtService.sign({ userId });
     const refreshToken = uuidv4();
@@ -208,16 +227,19 @@ export class AuthService {
     };
   }
 
-  // For Function Calculate expiration date and store the all refreshToken Data in databases.....................................
-  async storeRefreshToken(token: string, user) {
+  // For Function Calculate expiration date and store the all refreshToken Data in databases........................................
+  async storeRefreshToken(token: string, user: User) {
     // Remove the existing refresh token for the user if it exists
-    const existingToken = await this.refreshTokenRepository.findOne({
-      where: { user },
-    });
+    // const existingToken = await this.refreshTokenRepository.findOne({
+    //   where: { user: { id: user.id } },
+    // });
 
-    if (existingToken) {
-      await this.refreshTokenRepository.delete({ id: existingToken.id });
-    }
+    // if (existingToken) {
+    //   await this.refreshTokenRepository.delete({ id: existingToken.id });
+    // }
+
+    // Remove the existing refresh token for the user if it exists
+    await this.refreshTokenRepository.delete({ user: { id: user.id } });
 
     // Calculate the expiration date for the new refresh token
     const expiryDate = new Date();
