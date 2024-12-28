@@ -79,7 +79,7 @@ export class AuthService {
   }
 
   // For login user...............................................................................................................
-  async login({ email, password }: LoginUserDto): Promise<LoginResponseDto> {
+  async login({ email, password }: LoginUserDto) {
     const user = await this.userRepository.findOne({
       where: { email },
       select: [
@@ -101,17 +101,20 @@ export class AuthService {
     }
 
     // Generate JWT token for the user
-    const token = await this.generateuserToken(user.id);
+    const tokens = await this.generateuserToken(user.id);
 
     // Store the refresh token in the database
-    await this.storeRefreshToken(token.refreshToken, user);
+    await this.storeRefreshToken(tokens.refreshToken, user);
 
     // Return user details, excluding the password
-    const { password: _, ...userWithoutPassword } = user;
+    // const { password: _, ...userWithoutPassword } = user;
+    
     return {
-      ...userWithoutPassword,
-      accessToken: token.accessToken,
-      refreshToken: token.refreshToken,
+      // ...userWithoutPassword,
+      // accessToken: token.accessToken,
+      // refreshToken: token.refreshToken,
+      userId: user.id,
+      ...tokens
     };
   }
 
