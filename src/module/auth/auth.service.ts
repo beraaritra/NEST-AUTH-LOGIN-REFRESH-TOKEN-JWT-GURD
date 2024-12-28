@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { nanoid } from 'nanoid';
+import { MailService } from '../service/mail.service';
 
 @Injectable()
 export class AuthService {
@@ -22,6 +23,7 @@ export class AuthService {
     @InjectRepository(ResetToken)
     private readonly resetTokenRepository: Repository<ResetToken>,
     private jwtService: JwtService,
+    private readonly mailService: MailService,
   ) { }
 
   // For Signup user..............................................................................................................
@@ -212,6 +214,21 @@ export class AuthService {
       }
       // Save the new reset token in the database with the expiration date and user reference
       await this.resetTokenRepository.save(newResetToken);
+
+      // Construct the reset password link
+      const resetPasswordUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+      // Send the reset password email
+      const subject = "Password Reset Request";
+      const html = `
+      <p>Hello,</p>
+      <p>We received a request to reset your password. Please use the link below to set a new password:</p>
+      <a href="${resetPasswordUrl}">Reset Password</a>
+      <p>This link will expire in 1 hour.</p>
+      <p>If you did not request a password reset, please ignore this email.</p>
+    `;
+      await this.mailService.sendMail(user.email, subject, html);
+
     }
     return { messaage: 'If this User exists, they will recive an email' }
 
