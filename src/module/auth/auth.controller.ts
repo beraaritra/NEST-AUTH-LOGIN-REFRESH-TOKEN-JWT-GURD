@@ -11,12 +11,13 @@ import {
   Request,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { AuthGuard } from '../guards/auth.guard';
 import { SignupUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { AuthGuard } from '../guards/auth.guard';
 import { ForgotpasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -59,6 +60,7 @@ export class AuthController {
       throw new BadRequestException(error.message || 'Login failed.'); // 400 Bad Request for other errors
     }
   }
+
 
   // POST: Refresh Token
   @Post('refresh') //auth/refresh
@@ -122,8 +124,16 @@ export class AuthController {
   @Post('forgot-password') //auth/forgot-password
   @HttpCode(201) // Explicitly set the response
   async forgotPassword(@Body() forgotpasswordDto: ForgotpasswordDto) {
-    return this.authService.forgotPassword(forgotpasswordDto.email)
+    await this.authService.forgotPassword(forgotpasswordDto.email)
+    return { status: "Success", message: 'If this User exists, they will recive an email' }
   }
 
+  // POST: Reset Password
+  @Post('reset-password') //auth/reset-password
+  @HttpCode(201) // Explicitly set the response
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    await this.authService.resetPassword(resetPasswordDto.resetToken, resetPasswordDto.newPassword)
+    return { status: "Success", message: 'Password has been reset successfully.' };
+  }
 
 }

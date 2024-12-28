@@ -198,12 +198,12 @@ export class AuthService {
     expiryDate.setHours(expiryDate.getHours() + 1);
 
     // User validation Check
-    // if (!user) {
-    //   throw new UnauthorizedException('Invalid email or User Not exist');
-    // }
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or User Not exist');
+    }
 
     // Save The New Generate Reset Token in DB
-    if (user) {
+    else {
       const resetToken = nanoid(64);
 
       // Create a new reset token record in the database and set the expiration date
@@ -233,9 +233,49 @@ export class AuthService {
       await this.mailService.sendMail(user.email, subject, html);
     }
 
-    return { message: 'If this User exists, they will recive an email' }
-
   }
+
+  // For Reset Password using Forgot Password Link ..................................................................................
+  async resetPassword(resetToken: string, newPassword: string) {
+    // Validate the reset token
+    const token = await this.resetTokenRepository.findOne({
+      where: { token: resetToken },
+      relations: ['user'],
+    });
+
+    if (!token) {
+      throw new UnauthorizedException('Invalid reset password Link.');
+    }
+
+    // Check if the token has expired
+    if (new Date() > token.expiryDate) {
+      await this.resetTokenRepository.delete({ id: token.id }); // Clean up expired token
+      throw new UnauthorizedException('Reset token has expired.');
+    }
+
+    const user = token.user;
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    //  Update the user's password in the database
+    user.password = hashedPassword;
+    await this.userRepository.save(user);
+
+    //  Delete the used reset token
+    await this.resetTokenRepository.delete({ id: token.id });
+
+    // Send a success email to the user
+    const subject = "Password Reset Successful";
+    const html = `
+      <p>Hello ${user.firstName},</p>
+      <p>Your password has been reset successfully. If you did not perform this action, please contact support immediately.</p>
+      <p>Thank you,</p>
+      <p>The Team</p>
+    `;
+    await this.mailService.sendMail(user.email, subject, html);
+  }
+
 
   // this funtion For  generate Access token and refresh Token......................................................................
   async generateuserToken(userId: number) {
@@ -275,4 +315,5 @@ export class AuthService {
     // Save the new refresh token in the database
     await this.refreshTokenRepository.save(newRefreshToken);
   }
+
 }
