@@ -61,7 +61,6 @@ export class AuthController {
     }
   }
 
-
   // POST: Refresh Token
   @Post('refresh') //auth/refresh
   @HttpCode(201) // Explicitly set the response
@@ -90,22 +89,22 @@ export class AuthController {
   // POST: Change Password
   @UseGuards(AuthGuard)
   @Put('update-password') // auth/update-password
-  @HttpCode(201)
+  @HttpCode(200)
   async updatePassword(@Body() changePasswordDto: ChangePasswordDto, @Request() req) {
     try {
       const userId = req.user?.userId; // Extract user ID from the token payload
       if (!userId) {
         throw new UnauthorizedException('User not found in request.');
       }
+
       await this.authService.updatePassword(
         userId,
-        changePasswordDto.oldPassword,
         changePasswordDto.newPassword,
+        changePasswordDto.confirmPassword,
       );
 
       return {
-        status: 'success',
-        message: 'Password updated successfully',
+        status: 'success', message: 'Password updated successfully',
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
