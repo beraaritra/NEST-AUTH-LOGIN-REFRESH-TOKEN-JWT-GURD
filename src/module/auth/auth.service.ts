@@ -108,7 +108,7 @@ export class AuthService {
 
     // Return user details, excluding the password
     // const { password: _, ...userWithoutPassword } = user;
-    
+
     return {
       // ...userWithoutPassword,
       // accessToken: token.accessToken,
@@ -154,7 +154,7 @@ export class AuthService {
   }
 
   // For Change Password............................................................................................................
-  async updatePassword(userId: number, oldPassword: string, newPassword: string) {
+  async updatePassword(userId: number, newPassword: string, confirmPassword: string) {
     // Find the user by ID and select the password
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -165,28 +165,18 @@ export class AuthService {
       throw new UnauthorizedException('User not found.');
     }
 
-    // Check if the old password matches the current password
-    const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
-    if (!isPasswordValid) {
-      throw new BadRequestException('Old password is incorrect.');
-    }
-
-    // Check if the new password is the same as the old password
-    const isSameAsOldPassword = await bcrypt.compare(newPassword, user.password);
-    if (isSameAsOldPassword) {
-      throw new BadRequestException(
-        'New password cannot be the same as the old password.',
-      );
+    // Verify if the passwords match
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('New password and confirm password do not match.');
     }
 
     // Hash the new password
-    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update the user's password
-    user.password = hashedNewPassword;
+    user.password = hashedPassword;
     await this.userRepository.save(user);
 
-    return
   }
 
   // For Forget password Link generate...............................................................................................
