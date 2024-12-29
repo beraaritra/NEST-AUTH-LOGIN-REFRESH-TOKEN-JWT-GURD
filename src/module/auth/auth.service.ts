@@ -229,7 +229,7 @@ export class AuthService {
   }
 
   // For Reset Password using Forgot Password Link ..................................................................................
-  async resetPassword(resetToken: string, newPassword: string) {
+  async resetPassword(resetToken: string, newPassword: string, confirmPassword: string) {
     // Validate the reset token
     const token = await this.resetTokenRepository.findOne({
       where: { token: resetToken },
@@ -247,6 +247,11 @@ export class AuthService {
     }
 
     const user = token.user;
+
+    // Verify if the passwords match
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('New password and confirm password do not match.');
+    }
 
     // Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);

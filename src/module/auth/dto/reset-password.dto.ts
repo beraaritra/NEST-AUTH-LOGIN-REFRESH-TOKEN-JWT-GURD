@@ -11,4 +11,7 @@ export class ResetPasswordDto {
         { message: 'Password must be at least 6 characters long, include one letter, one number, and one special character.' }
     )
     newPassword: string;
+
+    @IsNotEmpty()
+    confirmPassword: string; 
 }

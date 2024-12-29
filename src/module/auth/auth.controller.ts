@@ -131,7 +131,11 @@ export class AuthController {
   @Post('reset-password') //auth/reset-password
   @HttpCode(201) // Explicitly set the response
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    await this.authService.resetPassword(resetPasswordDto.resetToken, resetPasswordDto.newPassword)
+    await this.authService.resetPassword(
+      resetPasswordDto.resetToken,
+      resetPasswordDto.newPassword,
+      resetPasswordDto.confirmPassword
+    )
     return { status: "Success", message: 'Password has been reset successfully.' };
   }
 
