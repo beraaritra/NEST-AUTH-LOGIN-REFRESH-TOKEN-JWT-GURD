@@ -6,12 +6,13 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { ResetToken } from './entities/reset-token.entity';
 import { LoginUserDto } from './dto/login-user.dto';
 import { SignupUserDto } from './dto/create-user.dto';
-import { LoginResponseDto } from './dto/login-response.dto';
+// import { LoginResponseDto } from './dto/login-response.dto';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { nanoid } from 'nanoid';
 import { MailService } from '../service/mail.service';
+import { VerifyToken } from './entities/verify-token.entity';
 
 @Injectable()
 export class AuthService {
@@ -22,99 +23,126 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(ResetToken)
     private readonly resetTokenRepository: Repository<ResetToken>,
+    @InjectRepository(VerifyToken)
+    private readonly verifyTokenRepository: Repository<VerifyToken>,
     private jwtService: JwtService,
     private readonly mailService: MailService,
   ) { }
 
   // For Signup user..............................................................................................................
   async signup(signupUserDto: SignupUserDto): Promise<Partial<User>> {
-    const {
-      email,
-      password,
-      confirmPassword,
-      firstName,
-      lastName,
-      phoneNumber,
-    } = signupUserDto;
+    const { email, password, confirmPassword, firstName, lastName, phoneNumber } = signupUserDto;
 
-    // Check if the user already exists
-    const existingUser = await this.userRepository.findOne({
-      where: { email },
-    });
-    if (existingUser) {
-      throw new BadRequestException('User with this email already exists.');
-    }
+    const existingUser = await this.userRepository.findOne({ where: { email } });
+    if (existingUser) throw new BadRequestException('User with this email already exists.');
 
-    // Hash the password
+    if (password !== confirmPassword) throw new BadRequestException('Passwords do not match.');
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Check if passwords match
-    if (password !== confirmPassword) {
-      throw new BadRequestException(
-        'Password and Confirm Password do not match.',
-      );
-    }
-
-    // Create a new user
     const newUser = this.userRepository.create({
       email,
       password: hashedPassword,
       firstName,
       lastName,
       phoneNumber,
+      verifiedUser: false,
     });
 
-    // Save the user to the database
     const savedUser = await this.userRepository.save(newUser);
 
-    // Return only public fields
+    // Generate 6-digit code and save to verify-token.entity
+    const code = Math.floor(100000 + Math.random() * 900000).toString(); // Random 6-digit code
+    const expiryDate = new Date(Date.now() + 10 * 60 * 1000); // 10-minute expiry
+
+    const verifyToken = this.verifyTokenRepository.create({
+      code,
+      user: savedUser,
+      expiryDate,
+    });
+    await this.verifyTokenRepository.save(verifyToken);
+
+    // Send email with the verification code
+    const emailBody =
+      `<p>Hi ${firstName},</p>
+        <p>Your verification code is: <b>${code}</b>.</p>
+        <p>This code is valid for 10 minutes.</p>`;
+    await this.mailService.sendMail(email, 'Verify Your Email', emailBody);
+
+    // Generate tokens
+    const tokens = await this.generateuserToken(savedUser.id);
+    await this.storeRefreshToken(tokens.refreshToken, savedUser);
+
+    // Return response (exclude password)
     return {
       id: savedUser.id,
       email: savedUser.email,
       firstName: savedUser.firstName,
       lastName: savedUser.lastName,
       phoneNumber: savedUser.phoneNumber,
-      createdAt: savedUser.createdAt,
+      verifiedUser: savedUser.verifiedUser,
+      ...tokens
     };
+  }
+
+  // For verify Email Address ....................................................................................................
+  async verifyEmail(email: string, code: string): Promise<{ email: string }> {
+
+    // Find the user by email
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user) {
+      throw new UnauthorizedException('Invaalid token not found.');
+    }
+
+    // Find the verification token for the user
+    const verifyToken = await this.verifyTokenRepository.findOne({
+      where: { user: { id: user.id }, code },
+    });
+
+    if (!verifyToken) {
+      throw new BadRequestException('Invalid verification code.');
+    }
+
+    // Check if the token has expired
+    if (new Date() > verifyToken.expiryDate) {
+      throw new BadRequestException('Verification code has expired.');
+    }
+
+    // Mark user as verified
+    user.verifiedUser = true;
+    await this.userRepository.save(user);
+
+    // Send a welcome email
+    const welcomeEmailBody = `<p>Welcome to our platform, ${user.firstName}!</p>`;
+    await this.mailService.sendMail(user.email, 'Welcome!', welcomeEmailBody);
+
+    // Delete the verification token
+    await this.verifyTokenRepository.delete({ id: verifyToken.id });
+
+    return { email: user.email };
   }
 
   // For login user...............................................................................................................
   async login({ email, password }: LoginUserDto) {
     const user = await this.userRepository.findOne({
       where: { email },
-      select: [
-        'id',
-        'email',
-        'password',
-        'firstName',
-        'lastName',
-        'phoneNumber',
-        'createdAt',
-      ],
+      select: ['id', 'email', 'password', 'verifiedUser'],
     });
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password.');
-    }
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    // Generate JWT token for the user
+    if (!user.verifiedUser) {
+      throw new UnauthorizedException('Email is not verified.');
+    }
+
     const tokens = await this.generateuserToken(user.id);
-
-    // Store the refresh token in the database
     await this.storeRefreshToken(tokens.refreshToken, user);
 
-    // Return user details, excluding the password
-    // const { password: _, ...userWithoutPassword } = user;
-
     return {
-      // ...userWithoutPassword,
-      // accessToken: token.accessToken,
-      // refreshToken: token.refreshToken,
       userId: user.id,
-      ...tokens
+      ...tokens,
     };
   }
 

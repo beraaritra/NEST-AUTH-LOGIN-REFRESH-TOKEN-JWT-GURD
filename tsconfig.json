@@ -16,6 +16,21 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false
-  }
+    "noFallthroughCasesInSwitch": false,
+    "typeRoots": [
+      "node_modules/@types",
+      "src"
+    ], // Include your custom types
+    "types": [
+      "node",
+      "express"
+    ] // Include any necessary global types
+  },
+  "include": [
+    "src/**/*.ts"
+  ], // Ensure all files in the 'src' directory are included
+  "exclude": [
+    "node_modules",
+    "dist"
+  ] // Exclude build artifacts
 }

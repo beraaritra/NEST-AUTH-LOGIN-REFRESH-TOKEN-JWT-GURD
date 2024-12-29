@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
 import { RefreshToken } from '../../auth/entities/refresh-token.entity';
 import { ResetToken } from 'src/module/auth/entities/reset-token.entity';
+import { VerifyToken } from 'src/module/auth/entities/verify-token.entity';
 
 @Entity()
 export class User {
@@ -22,6 +23,9 @@ export class User {
     @Column({ nullable: true })
     phoneNumber: string;
 
+    @Column({ default: false })
+    verifiedUser: boolean;
+
     @CreateDateColumn()
     createdAt: Date;
 
@@ -32,4 +36,9 @@ export class User {
     // Relationship with reset tokens
     @OneToMany(() => ResetToken, (resetToken) => resetToken.user, { cascade: true })
     resetTokens: ResetToken[];
+
+    // Relationship with verify tokens
+    @OneToMany(() => VerifyToken, (verifyToken) => verifyToken.user, { cascade: true })
+    verifyTokens: VerifyToken[];
+
 }

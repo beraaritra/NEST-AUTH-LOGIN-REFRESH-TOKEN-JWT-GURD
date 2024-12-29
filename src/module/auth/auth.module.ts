@@ -8,9 +8,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ResetToken } from './entities/reset-token.entity';
 import { MailModule } from '../service/mail.module';
+import { VerifyToken } from './entities/verify-token.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, RefreshToken, ResetToken]),
+  imports: [TypeOrmModule.forFeature([User, RefreshToken, ResetToken, VerifyToken]),
     MailModule,
   JwtModule.registerAsync({
     imports: [ConfigModule],

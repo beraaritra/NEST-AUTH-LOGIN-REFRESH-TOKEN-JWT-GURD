@@ -18,6 +18,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotpasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailTokenDto } from './dto/verify-email-token.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -29,11 +30,7 @@ export class AuthController {
   async signup(@Body() body: SignupUserDto) {
     try {
       const user = await this.authService.signup(body);
-      return {
-        status: 'success',
-        message: 'User signed up successfully',
-        data: user,
-      };
+      return { status: 'success', message: 'User signed up successfully ,Please verify The email address', data: user };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error; // return 401 Unauthorized
@@ -42,17 +39,32 @@ export class AuthController {
     }
   }
 
+  // PUT : Verify-Email
+  @Put('verify-email')
+  @UseGuards(AuthGuard)
+  async verifyEmail(@Request() req, @Body() verifyEmailDto: VerifyEmailTokenDto) {
+    const { user } = req;
+
+    if (!user) {
+      throw new UnauthorizedException('User information not found in the request.');
+    }
+    const { email, userId } = user; // Destructure user object
+    const { code } = verifyEmailDto;
+
+    console.log(`Verifying email for userId: ${userId}, email: ${email}, code: ${code}`);
+
+    const result = await this.authService.verifyEmail(email, code);
+
+    return { status: 'success', message: 'Email verified successfully.', data: result };
+  }
+
   // POST: Login
   @Post('login') //auth/login
   @HttpCode(200) // Explicitly set the response
   async login(@Body() loginUserDto: LoginUserDto) {
     try {
       const user = await this.authService.login(loginUserDto);
-      return {
-        status: 'success',
-        message: 'User logged in successfully',
-        data: user,
-      };
+      return { status: 'success', message: 'User logged in successfully', data: user };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error; //  return 401 Unauthorized
@@ -69,11 +81,7 @@ export class AuthController {
       const tokens = await this.authService.refreshTokens(
         refreshTokenDto.refreshToken,
       );
-      return {
-        status: 'success',
-        message: 'Tokens refreshed successfully',
-        data: tokens,
-      };
+      return { status: 'success', message: 'Tokens refreshed successfully', data: tokens };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error; // return 401 Unauthorized
@@ -103,9 +111,7 @@ export class AuthController {
         changePasswordDto.confirmPassword,
       );
 
-      return {
-        status: 'success', message: 'Password updated successfully',
-      };
+      return { status: 'success', message: 'Password updated successfully', };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error; // 401 Unauthorized
